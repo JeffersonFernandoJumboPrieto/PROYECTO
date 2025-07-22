@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Geovisor Loja</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+    
+    <!-- Custom CSS -->
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+        }
+
+        .container {
+            display: flex;
+            height: 100vh;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+        }
+
+        .sidebar {
+            width: 350px;
+            background: linear-gradient(180deg, #2c3e50 0%, #34495e 100%);
+            color: white;
+            padding: 20px;
+            box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
+            overflow-y: auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #3498db;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 5px;
+            background: linear-gradient(45deg, #3498db, #2ecc71);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .header p {
+            font-size: 14px;
+            opacity: 0.8;
+        }
+
+        .layer-control {
+            margin-bottom: 25px;
+        }
+
+        .layer-group {
+            margin-bottom: 20px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: all 0.3s ease;
+        }
+
+        .layer-group:hover {
+            background: rgba(255, 255, 255, 0.15);
+            transform: translateX(5px);
+        }
+
+        .layer-group h3 {
+            font-size: 16px;
+            margin-bottom: 12px;
+            color: #3498db;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .layer-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+            padding: 8px;
+            border-radius: 5px;
+            transition: background-color 0.2s ease;
+        }
+
+        .layer-item:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .layer-item input[type="checkbox"] {
+            margin-right: 10px;
+            transform: scale(1.2);
+            accent-color: #3498db;
+        }
+
+        .layer-item label {
+            cursor: pointer;
+            font-size: 14px;
+            flex: 1;
+        }
+
+        .status {
+            margin-top: 30px;
+            padding: 15px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+            border-left: 4px solid #3498db;
+        }
+
+        .status h4 {
+            margin-bottom: 10px;
+            color: #3498db;
+        }
+
+        .status-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+            font-size: 12px;
+        }
+
+        .map-container {
+            flex: 1;
+            position: relative;
+        }
+
+        #map {
+            height: 100%;
+            width: 100%;
+        }
+
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+            display: none;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .config-panel {
+            margin-top: 20px;
+            padding: 15px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+        }
+
+        .config-item {
+            margin-bottom: 15px;
+        }
+
+        .config-item label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .config-item input, .config-item textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 4px;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            font-size: 12px;
+        }
+
+        .config-item input::placeholder,
+        .config-item textarea::placeholder {
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        .btn {
+            width: 100%;
+            padding: 10px;
+            background: linear-gradient(45deg, #3498db, #2ecc71);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(52, 152, 219, 0.4);
+        }
+
+        .layer-legend {
+            margin-top: 10px;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.1);
+            border-radius: 5px;
+            font-size: 11px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div class="header">
+                <h1>🗺️ Geovisor Loja</h1>
+                <p>Sistema de Información Geográfica</p>
+            </div>
+
+            <!-- Configuración de Supabase -->
+            <div class="config-panel">
+                <h3>⚙️ Configuración</h3>
+                <div class="config-item">
+                    <label>URL de Supabase:</label>
+                    <input type="text" id="supabaseUrl" placeholder="https://tu-proyecto.supabase.co">
+                </div>
+                <div class="config-item">
+                    <label>API Key (anon):</label>
+                    <input type="password" id="supabaseKey" placeholder="Tu clave anon pública">
+                </div>
+                <button class="btn" onclick="connectToSupabase()">🔗 Conectar</button>
+            </div>
+
+            <!-- Control de Capas -->
+            <div class="layer-control">
+                <div class="layer-group">
+                    <h3>📍 Límites Administrativos</h3>
+                    <div class="layer-item">
+                        <input type="checkbox" id="canton_loja" data-table="Canton_Loja">
+                        <label for="canton_loja">Cantón Loja</label>
+                    </div>
+                    <div class="layer-item">
+                        <input type="checkbox" id="limite_zamora" data-table="LIMITE_C_ZAMORA">
+                        <label for="limite_zamora">Límite Zamora</label>
+                    </div>
+                </div>
+
+                <div class="layer-group">
+                    <h3>🏘️ Poblados</h3>
+                    <div class="layer-item">
+                        <input type="checkbox" id="poblados_loja" data-table="Poblados_Loja">
+                        <label for="poblados_loja">Poblados Loja</label>
+                    </div>
+                </div>
+
+                <div class="layer-group">
+                    <h3>🌍 Cobertura y Uso</h3>
+                    <div class="layer-item">
+                        <input type="checkbox" id="cob_zamora" data-table="COB_T_MC_ZAMORA_CV">
+                        <label for="cob_zamora">Cobertura Zamora</label>
+                    </div>
+                    <div class="layer-item">
+                        <input type="checkbox" id="uso_zamora" data-table="USO_T_MC_ZAMORA_CV">
+                        <label for="uso_zamora">Uso del Suelo Zamora</label>
+                    </div>
+                </div>
+
+                <div class="layer-group">
+                    <h3>⚠️ Riesgos</h3>
+                    <div class="layer-item">
+                        <input type="checkbox" id="movimientos_masa" data-table="Movimientos_masa_Loja">
+                        <label for="movimientos_masa">Movimientos en Masa</label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Estado del Sistema -->
+            <div class="status">
+                <h4>📊 Estado del Sistema</h4>
+                <div class="status-item">
+                    <span>Conexión:</span>
+                    <span id="connection-status">Desconectado</span>
+                </div>
+                <div class="status-item">
+                    <span>Capas cargadas:</span>
+                    <span id="layers-loaded">0</span>
+                </div>
+                <div class="status-item">
+                    <span>Elementos totales:</span>
+                    <span id="total-features">0</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Mapa -->
+        <div class="map-container">
+            <div id="map"></div>
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <div>Cargando datos...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+    <script>
+        // Variables globales
+        let map;
+        let supabaseClient;
+        let layerGroups = {};
+        let loadedLayers = 0;
+        let totalFeatures = 0;
+
+        // Configuración de colores para cada capa
+        const layerStyles = {
+            'Canton_Loja': { color: '#e74c3c', weight: 3, fillOpacity: 0.1 },
+            'LIMITE_C_ZAMORA': { color: '#9b59b6', weight: 3, fillOpacity: 0.1 },
+            'Poblados_Loja': { color: '#f39c12', fillOpacity: 0.8, radius: 6 },
+            'COB_T_MC_ZAMORA_CV': { color: '#27ae60', weight: 2, fillOpacity: 0.3 },
+            'USO_T_MC_ZAMORA_CV': { color: '#2980b9', weight: 2, fillOpacity: 0.3 },
+            'Movimientos_masa_Loja': { color: '#e67e22', fillOpacity: 0.7, radius: 8 }
+        };
+
+        // Inicializar mapa
+        function initMap() {
+            map = L.map('map').setView([-4.0, -79.2], 10);
+            
+            // Capa base
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
+
+            // Controles adicionales
+            map.zoomControl.setPosition('topright');
+        }
+
+        // Conectar a Supabase
+        async function connectToSupabase() {
+            const url = document.getElementById('supabaseUrl').value;
+            const key = document.getElementById('supabaseKey').value;
+
+            if (!url || !key) {
+                alert('Por favor ingresa la URL y la clave de Supabase');
+                return;
+            }
+
+            try {
+                // Simular conexión a Supabase (necesitarías importar la librería real)
+                supabaseClient = { url, key };
+                updateConnectionStatus(true);
+                
+                alert('Conexión establecida correctamente');
+            } catch (error) {
+                console.error('Error conectando a Supabase:', error);
+                alert('Error al conectar con Supabase');
+                updateConnectionStatus(false);
+            }
+        }
+
+        // Cargar datos de una tabla
+        async function loadLayerData(tableName, checkbox) {
+            if (!supabaseClient) {
+                alert('Primero conecta con Supabase');
+                checkbox.checked = false;
+                return;
+            }
+
+            showLoading(true);
+
+            try {
+                // Aquí harías la consulta real a Supabase
+                // const { data, error } = await supabaseClient.from(tableName).select('*');
+                
+                // Por ahora, simulamos datos
+                const mockData = await generateMockData(tableName);
+                
+                if (checkbox.checked) {
+                    addLayerToMap(tableName, mockData);
+                } else {
+                    removeLayerFromMap(tableName);
+                }
+
+            } catch (error) {
+                console.error(`Error cargando ${tableName}:`, error);
+                alert(`Error cargando la capa ${tableName}`);
+                checkbox.checked = false;
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // Generar datos mock para demostración
+        async function generateMockData(tableName) {
+            // Simular delay de red
+            await new Promise(resolve => setTimeout(resolve, 1000));
+
+            const baseCoords = [-4.0, -79.2]; // Loja aproximadamente
+            const data = [];
+
+            for (let i = 0; i < 10; i++) {
+                const lat = baseCoords[0] + (Math.random() - 0.5) * 0.5;
+                const lng = baseCoords[1] + (Math.random() - 0.5) * 0.5;
+
+                if (tableName.includes('Poblados') || tableName.includes('Movimientos')) {
+                    // Puntos
+                    data.push({
+                        id: i,
+                        nombre: `${tableName.split('_')[0]} ${i + 1}`,
+                        geom: { type: 'Point', coordinates: [lng, lat] },
+                        lat, lng
+                    });
+                } else {
+                    // Polígonos
+                    const coords = [];
+                    for (let j = 0; j < 5; j++) {
+                        const pLat = lat + (Math.random() - 0.5) * 0.1;
+                        const pLng = lng + (Math.random() - 0.5) * 0.1;
+                        coords.push([pLat, pLng]);
+                    }
+                    coords.push(coords[0]); // Cerrar polígono
+
+                    data.push({
+                        id: i,
+                        nombre: `${tableName.split('_')[0]} ${i + 1}`,
+                        geom: { type: 'Polygon', coordinates: [coords] },
+                        coords
+                    });
+                }
+            }
+
+            return data;
+        }
+
+        // Agregar capa al mapa
+        function addLayerToMap(tableName, data) {
+            if (layerGroups[tableName]) {
+                map.removeLayer(layerGroups[tableName]);
+            }
+
+            const layerGroup = L.layerGroup();
+            const style = layerStyles[tableName] || { color: '#333' };
+
+            data.forEach(feature => {
+                let layer;
+
+                if (feature.geom && feature.geom.type === 'Point') {
+                    // Puntos
+                    layer = L.circleMarker([feature.lat, feature.lng], {
+                        ...style,
+                        radius: style.radius || 5
+                    });
+                } else if (feature.coords) {
+                    // Polígonos
+                    layer = L.polygon(feature.coords, style);
+                }
+
+                if (layer) {
+                    layer.bindPopup(`
+                        <div style="font-family: Arial, sans-serif;">
+                            <h4 style="margin: 0 0 10px 0; color: ${style.color};">
+                                ${feature.nombre || 'Sin nombre'}
+                            </h4>
+                            <p><strong>Tabla:</strong> ${tableName}</p>
+                            <p><strong>ID:</strong> ${feature.id}</p>
+                            <p><strong>Coordenadas:</strong> ${feature.lat?.toFixed(4) || 'N/A'}, ${feature.lng?.toFixed(4) || 'N/A'}</p>
+                        </div>
+                    `);
+
+                    layerGroup.addLayer(layer);
+                }
+            });
+
+            layerGroups[tableName] = layerGroup;
+            map.addLayer(layerGroup);
+
+            // Actualizar estadísticas
+            loadedLayers++;
+            totalFeatures += data.length;
+            updateStats();
+        }
+
+        // Remover capa del mapa
+        function removeLayerFromMap(tableName) {
+            if (layerGroups[tableName]) {
+                const layerCount = layerGroups[tableName].getLayers().length;
+                map.removeLayer(layerGroups[tableName]);
+                delete layerGroups[tableName];
+                
+                loadedLayers--;
+                totalFeatures -= layerCount;
+                updateStats();
+            }
+        }
+
+        // Actualizar estado de conexión
+        function updateConnectionStatus(connected) {
+            const status = document.getElementById('connection-status');
+            status.textContent = connected ? 'Conectado' : 'Desconectado';
+            status.style.color = connected ? '#27ae60' : '#e74c3c';
+        }
+
+        // Actualizar estadísticas
+        function updateStats() {
+            document.getElementById('layers-loaded').textContent = loadedLayers;
+            document.getElementById('total-features').textContent = totalFeatures;
+        }
+
+        // Mostrar/ocultar loading
+        function showLoading(show) {
+            document.getElementById('loading').style.display = show ? 'block' : 'none';
+        }
+
+        // Event listeners
+        document.addEventListener('DOMContentLoaded', function() {
+            initMap();
+
+            // Agregar listeners a los checkboxes
+            document.querySelectorAll('input[type="checkbox"][data-table]').forEach(checkbox => {
+                checkbox.addEventListener('change', function() {
+                    const tableName = this.getAttribute('data-table');
+                    loadLayerData(tableName, this);
+                });
+            });
+        });
+    </script>
+</body>
+</html>
