@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Geoportal - Poblados de Loja</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 1rem 2rem;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .header h1 {
+            color: #2c3e50;
+            font-size: 2rem;
+            font-weight: 700;
+            text-align: center;
+            margin-bottom: 0.5rem;
+        }
+
+        .header p {
+            color: #7f8c8d;
+            text-align: center;
+            font-size: 1.1rem;
+        }
+
+        .container {
+            display: flex;
+            height: calc(100vh - 120px);
+            gap: 1rem;
+            padding: 1rem;
+        }
+
+        .sidebar {
+            width: 300px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 1.5rem;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            overflow-y: auto;
+        }
+
+        .map-container {
+            flex: 1;
+            position: relative;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+        }
+
+        #map {
+            height: 100%;
+            width: 100%;
+        }
+
+        .info-panel {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 10px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            border-left: 4px solid #3498db;
+        }
+
+        .info-panel h3 {
+            color: #2c3e50;
+            margin-bottom: 0.5rem;
+            font-size: 1.2rem;
+        }
+
+        .status {
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-weight: 600;
+            text-align: center;
+            margin-bottom: 1rem;
+            transition: all 0.3s ease;
+        }
+
+        .status.loading {
+            background: #f39c12;
+            color: white;
+        }
+
+        .status.success {
+            background: #27ae60;
+            color: white;
+        }
+
+        .status.error {
+            background: #e74c3c;
+            color: white;
+        }
+
+        .poblado-item {
+            background: rgba(52, 152, 219, 0.1);
+            border: 1px solid rgba(52, 152, 219, 0.3);
+            border-radius: 8px;
+            padding: 0.8rem;
+            margin-bottom: 0.5rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .poblado-item:hover {
+            background: rgba(52, 152, 219, 0.2);
+            transform: translateX(5px);
+            box-shadow: 0 4px 15px rgba(52, 152, 219, 0.3);
+        }
+
+        .poblado-item h4 {
+            color: #2c3e50;
+            margin-bottom: 0.3rem;
+            font-size: 1rem;
+        }
+
+        .poblado-item p {
+            color: #7f8c8d;
+            font-size: 0.9rem;
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .leaflet-popup-content-wrapper {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 10px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+        }
+
+        .popup-content {
+            text-align: center;
+            padding: 0.5rem;
+        }
+
+        .popup-content h4 {
+            color: #2c3e50;
+            margin-bottom: 0.5rem;
+            font-size: 1.1rem;
+        }
+
+        .popup-content p {
+            color: #7f8c8d;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🗺️ Geoportal Poblados de Loja</h1>
+        <p>Visualización interactiva de los poblados de la provincia de Loja</p>
+    </div>
+
+    <div class="container">
+        <div class="sidebar">
+            <div class="info-panel">
+                <h3>📊 Estado de Conexión</h3>
+                <div id="status" class="status loading">
+                    <span class="loading-spinner"></span> Conectando...
+                </div>
+            </div>
+
+            <div class="info-panel">
+                <h3>🔧 Configuración Rápida</h3>
+                <button onclick="testConnection()" style="width: 100%; padding: 0.8rem; background: #3498db; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; margin-bottom: 0.5rem;">
+                    🔍 Probar Conexión
+                </button>
+                <button onclick="showLogs()" style="width: 100%; padding: 0.8rem; background: #9b59b6; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600;">
+                    📋 Ver Logs
+                </button>
+            </div>
+
+            <div class="info-panel">
+                <h3>🏘️ Poblados Cargados</h3>
+                <p id="poblado-count">Cargando datos...</p>
+            </div>
+
+            <div class="info-panel">
+                <h3>📍 Lista de Poblados</h3>
+                <div id="poblados-list">
+                    <p>Cargando poblados...</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="map-container">
+            <div id="map"></div>
+        </div>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+    
+    <script>
+        // ========================================
+        // CONFIGURACIÓN DE SUPABASE - EDITA AQUÍ
+        // ========================================
+        
+        const SUPABASE_CONFIG = {
+            url: 'https://tu-proyecto.supabase.co',  // Cambia por tu URL
+            key: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'  // Cambia por tu clave anónima
+        };
+        
+        // Nombre de tu tabla en Supabase
+        const TABLE_NAME = 'Poblados_Loja';
+
+        // Inicializar el mapa centrado en Loja, Ecuador
+        const map = L.map('map').setView([-3.9928, -79.2042], 10);
+
+        // Agregar capa base
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        // Grupo de capas para los poblados
+        const pobladosLayer = L.layerGroup().addTo(map);
+
+        // Elementos del DOM
+        const statusEl = document.getElementById('status');
+        const pobladoCountEl = document.getElementById('poblado-count');
+        const pobladosListEl = document.getElementById('poblados-list');
+
+        // Array para almacenar logs
+        let logs = [];
+
+        // Función para agregar logs
+        function addLog(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            logs.push(`[${timestamp}] ${type.toUpperCase()}: ${message}`);
+            console.log(`[${timestamp}] ${message}`);
+        }
+
+        // Función para mostrar logs
+        function showLogs() {
+            const logWindow = window.open('', '_blank', 'width=600,height=400');
+            logWindow.document.write(`
+                <html>
+                    <head><title>Logs de Conexión</title></head>
+                    <body style="font-family: monospace; padding: 20px; background: #f0f0f0;">
+                        <h3>📋 Logs de Conexión</h3>
+                        <pre style="background: white; padding: 15px; border-radius: 5px; overflow: auto;">${logs.join('\n')}</pre>
+                    </body>
+                </html>
+            `);
+        }
+
+        // Función para probar conexión
+        async function testConnection() {
+            addLog('Iniciando prueba de conexión...');
+            
+            if (!checkConfiguration()) {
+                addLog('Configuración incompleta', 'error');
+                return;
+            }
+            
+            updateStatus('<span class="loading-spinner"></span> Probando conexión...', 'loading');
+            
+            try {
+                const url = `${SUPABASE_CONFIG.url}/rest/v1/${TABLE_NAME}?select=*&limit=1`;
+                addLog(`URL de prueba: ${url}`);
+                
+                const response = await fetch(url, {
+                    method: 'GET',
+                    headers: {
+                        'apikey': SUPABASE_CONFIG.key,
+                        'Authorization': `Bearer ${SUPABASE_CONFIG.key}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                addLog(`Status de respuesta: ${response.status}`);
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    addLog(`Conexión exitosa. Datos disponibles: ${data.length}`, 'success');
+                    updateStatus('✅ Conexión exitosa', 'success');
+                    
+                    if (data.length > 0) {
+                        addLog(`Campos encontrados: ${Object.keys(data[0]).join(', ')}`);
+                    }
+                } else {
+                    const errorText = await response.text();
+                    addLog(`Error HTTP ${response.status}: ${errorText}`, 'error');
+                    updateStatus(`❌ Error ${response.status}`, 'error');
+                }
+            } catch (error) {
+                addLog(`Error de red: ${error.message}`, 'error');
+                updateStatus('❌ Error de red', 'error');
+            }
+        }
+
+        // Función para actualizar el estado
+        function updateStatus(message, type) {
+            statusEl.innerHTML = message;
+            statusEl.className = `status ${type}`;
+        }
+
+        // Función para cargar datos desde Supabase
+        async function loadPoblados() {
+            try {
+                updateStatus('<span class="loading-spinner"></span> Cargando poblados...', 'loading');
+                
+                console.log('Intentando conectar a:', SUPABASE_CONFIG.url);
+                console.log('Usando tabla:', TABLE_NAME);
+                
+                const url = `${SUPABASE_CONFIG.url}/rest/v1/${TABLE_NAME}?select=*`;
+                console.log('URL completa:', url);
+                
+                const response = await fetch(url, {
+                    method: 'GET',
+                    headers: {
+                        'apikey': SUPABASE_CONFIG.key,
+                        'Authorization': `Bearer ${SUPABASE_CONFIG.key}`,
+                        'Content-Type': 'application/json',
+                        'Prefer': 'return=representation'
+                    }
+                });
+
+                console.log('Status de respuesta:', response.status);
+                console.log('Headers de respuesta:', response.headers);
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('Error response:', errorText);
+                    throw new Error(`Error HTTP ${response.status}: ${errorText}`);
+                }
+
+                const data = await response.json();
+                console.log('Datos recibidos:', data);
+                
+                if (!data || data.length === 0) {
+                    updateStatus('⚠️ No se encontraron poblados en la tabla', 'error');
+                    pobladoCountEl.textContent = 'No hay datos disponibles';
+                    pobladosListEl.innerHTML = '<p style="color: #f39c12;">La tabla está vacía o no existe.</p>';
+                    return;
+                }
+
+                updateStatus('✅ Datos cargados correctamente', 'success');
+                pobladoCountEl.textContent = `${data.length} poblados encontrados`;
+                
+                // Limpiar capas anteriores
+                pobladosLayer.clearLayers();
+                
+                // Procesar y mostrar los poblados
+                displayPoblados(data);
+                
+            } catch (error) {
+                console.error('Error detallado:', error);
+                updateStatus(`❌ Error: ${error.message}`, 'error');
+                pobladoCountEl.textContent = 'Error al cargar datos';
+                
+                let errorMsg = '<div style="color: #e74c3c; padding: 1rem; background: rgba(231, 76, 60, 0.1); border-radius: 8px;">';
+                errorMsg += '<h4>🔍 Error de conexión:</h4>';
+                errorMsg += `<p><strong>Mensaje:</strong> ${error.message}</p>`;
+                errorMsg += '<h5>Verifica:</h5>';
+                errorMsg += '<ul style="margin-left: 1rem; margin-top: 0.5rem;">';
+                errorMsg += '<li>✓ URL de Supabase correcta</li>';
+                errorMsg += '<li>✓ Clave anónima válida</li>';
+                errorMsg += '<li>✓ Tabla "Poblados_Loja" existe</li>';
+                errorMsg += '<li>✓ RLS configurado correctamente</li>';
+                errorMsg += '</ul></div>';
+                
+                pobladosListEl.innerHTML = errorMsg;
+            }
+        }
+
+        // Función para mostrar poblados en el mapa
+        function displayPoblados(poblados) {
+            const listItems = [];
+            const bounds = [];
+
+            poblados.forEach((poblado, index) => {
+                // Extraer coordenadas (asumiendo que tienes campos lat, lng o geom)
+                let lat, lng;
+                
+                // Intenta diferentes formatos de coordenadas
+                if (poblado.geom && typeof poblado.geom === 'object') {
+                    // GeoJSON format
+                    if (poblado.geom.coordinates) {
+                        lng = poblado.geom.coordinates[0];
+                        lat = poblado.geom.coordinates[1];
+                    }
+                } else if (poblado.latitude && poblado.longitude) {
+                    lat = poblado.latitude;
+                    lng = poblado.longitude;
+                } else if (poblado.lat && poblado.lng) {
+                    lat = poblado.lat;
+                    lng = poblado.lng;
+                } else if (poblado.y && poblado.x) {
+                    lat = poblado.y;
+                    lng = poblado.x;
+                } else {
+                    // Coordenadas por defecto en Loja si no se encuentran
+                    lat = -3.9928 + (Math.random() - 0.5) * 0.5;
+                    lng = -79.2042 + (Math.random() - 0.5) * 0.5;
+                }
+
+                // Crear marcador
+                const marker = L.circleMarker([lat, lng], {
+                    radius: 8,
+                    fillColor: '#3498db',
+                    color: '#2980b9',
+                    weight: 2,
+                    opacity: 1,
+                    fillOpacity: 0.7
+                });
+
+                // Popup con información del poblado
+                const popupContent = `
+                    <div class="popup-content">
+                        <h4>🏘️ ${poblado.nam || poblado.name || poblado.nombre || 'Poblado sin nombre'}</h4>
+                        <p><strong>ID:</strong> ${poblado.id || 'N/A'}</p>
+                        <p><strong>Coordenadas:</strong> ${lat.toFixed(4)}, ${lng.toFixed(4)}</p>
+                    </div>
+                `;
+                
+                marker.bindPopup(popupContent);
+                marker.addTo(pobladosLayer);
+                
+                bounds.push([lat, lng]);
+
+                // Crear elemento de la lista
+                const listItem = document.createElement('div');
+                listItem.className = 'poblado-item';
+                listItem.innerHTML = `
+                    <h4>${poblado.nam || poblado.name || poblado.nombre || 'Poblado sin nombre'}</h4>
+                    <p>Lat: ${lat.toFixed(4)}, Lng: ${lng.toFixed(4)}</p>
+                `;
+                
+                // Evento click para centrar el mapa
+                listItem.addEventListener('click', () => {
+                    map.setView([lat, lng], 15);
+                    marker.openPopup();
+                });
+                
+                listItems.push(listItem);
+            });
+
+            // Actualizar lista en la sidebar
+            pobladosListEl.innerHTML = '';
+            listItems.forEach(item => pobladosListEl.appendChild(item));
+
+            // Ajustar vista del mapa para mostrar todos los poblados
+            if (bounds.length > 0) {
+                map.fitBounds(bounds, { padding: [20, 20] });
+            }
+        }
+
+        // Verificar configuración antes de cargar
+        function checkConfiguration() {
+            const isDefaultUrl = SUPABASE_CONFIG.url.includes('tu-proyecto.supabase.co');
+            const isDefaultKey = SUPABASE_CONFIG.key.includes('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...');
+            
+            if (isDefaultUrl || isDefaultKey) {
+                updateStatus('⚙️ Necesita configuración', 'error');
+                pobladosListEl.innerHTML = `
+                    <div style="color: #e74c3c; padding: 1rem; background: rgba(231, 76, 60, 0.1); border-radius: 8px;">
+                        <h4>📋 Pasos para configurar:</h4>
+                        <div style="margin-top: 0.5rem;">
+                            <p><strong>1. Ve a tu proyecto de Supabase</strong></p>
+                            <p><strong>2. En Settings → API, copia:</strong></p>
+                            <ul style="margin-left: 1rem; margin-top: 0.3rem;">
+                                <li>• Project URL</li>
+                                <li>• anon/public key</li>
+                            </ul>
+                            <p><strong>3. Pégalos en las líneas 169-170</strong></p>
+                            <p><strong>4. Guarda y recarga la página</strong></p>
+                        </div>
+                        <div style="margin-top: 1rem; padding: 0.5rem; background: rgba(0,0,0,0.1); border-radius: 4px; font-family: monospace; font-size: 0.8rem;">
+                            <p>url: 'https://tuproyecto.supabase.co'</p>
+                            <p>key: 'eyJhbGciOiJIUzI1NiIs...'</p>
+                        </div>
+                    </div>
+                `;
+                return false;
+            }
+            return true;
+        }
+
+        // Inicializar la aplicación
+        if (checkConfiguration()) {
+            loadPoblados();
+        }
+
+        // Botón para recargar datos
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'F5' || (e.ctrlKey && e.key === 'r')) {
+                e.preventDefault();
+                if (checkConfiguration()) {
+                    loadPoblados();
+                }
+            }
+        });
+    </script>
+</body>
+</html>
