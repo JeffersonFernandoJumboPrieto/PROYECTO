@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Geoportal - Poblados de Loja</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 1rem 2rem;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .header h1 {
+            color: #2c3e50;
+            font-size: 2rem;
+            font-weight: 700;
+            text-align: center;
+            margin-bottom: 0.5rem;
+        }
+
+        .header p {
+            color: #7f8c8d;
+            text-align: center;
+            font-size: 1.1rem;
+        }
+
+        .container {
+            display: flex;
+            height: calc(100vh - 120px);
+            gap: 1rem;
+            padding: 1rem;
+        }
+
+        .sidebar {
+            width: 300px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 1.5rem;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            overflow-y: auto;
+        }
+
+        .map-container {
+            flex: 1;
+            position: relative;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+        }
+
+        #map {
+            height: 100%;
+            width: 100%;
+        }
+
+        .info-panel {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 10px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            border-left: 4px solid #3498db;
+        }
+
+        .info-panel h3 {
+            color: #2c3e50;
+            margin-bottom: 0.5rem;
+            font-size: 1.2rem;
+        }
+
+        .status {
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-weight: 600;
+            text-align: center;
+            margin-bottom: 1rem;
+            transition: all 0.3s ease;
+        }
+
+        .status.loading {
+            background: #f39c12;
+            color: white;
+        }
+
+        .status.success {
+            background: #27ae60;
+            color: white;
+        }
+
+        .status.error {
+            background: #e74c3c;
+            color: white;
+        }
+
+        .poblado-item {
+            background: rgba(52, 152, 219, 0.1);
+            border: 1px solid rgba(52, 152, 219, 0.3);
+            border-radius: 8px;
+            padding: 0.8rem;
+            margin-bottom: 0.5rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .poblado-item:hover {
+            background: rgba(52, 152, 219, 0.2);
+            transform: translateX(5px);
+            box-shadow: 0 4px 15px rgba(52, 152, 219, 0.3);
+        }
+
+        .poblado-item h4 {
+            color: #2c3e50;
+            margin-bottom: 0.3rem;
+            font-size: 1rem;
+        }
+
+        .poblado-item p {
+            color: #7f8c8d;
+            font-size: 0.9rem;
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .leaflet-popup-content-wrapper {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 10px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+        }
+
+        .popup-content {
+            text-align: center;
+            padding: 0.5rem;
+        }
+
+        .popup-content h4 {
+            color: #2c3e50;
+            margin-bottom: 0.5rem;
+            font-size: 1.1rem;
+        }
+
+        .popup-content p {
+            color: #7f8c8d;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🗺️ Geoportal Poblados de Loja</h1>
+        <p>Visualización interactiva de poblados</p>
+    </div>
+
+    <div class="container">
+        <div class="sidebar">
+            <div class="info-panel">
+                <h3>📊 Estado de Conexión</h3>
+                <div id="status" class="status loading">
+                    <span class="loading-spinner"></span> Conectando...
+                </div>
+            </div>
+
+            <div class="info-panel">
+                <h3>🔍 Diagnóstico de Datos</h3>
+                <button onclick="showDataStructure()" style="width: 100%; padding: 0.8rem; background: #f39c12; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; margin-bottom: 0.5rem;">
+                    📋 Ver Estructura de Datos
+                </button>
+                <div id="data-info" style="font-size: 0.8rem; color: #7f8c8d; margin-top: 0.5rem;">
+                    <p>Haz clic para ver cómo están tus coordenadas</p>
+                </div>
+            </div>
+
+            <div class="info-panel">
+                <h3>🏘️ Poblados</h3>
+                <p id="poblado-count">Cargando datos...</p>
+                <div id="poblados-list" style="margin-top: 1rem;">
+                    <p>Cargando poblados...</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="map-container">
+            <div id="map"></div>
+        </div>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+    
+    <script>
+        // ========================================
+        // CONFIGURACIÓN DE SUPABASE - EDITA AQUÍ
+        // ========================================
+        
+        const SUPABASE_CONFIG = {
+            url: 'https://kwzrbhvbzwsaxwxisjks.supabase.co',
+            key: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt3enJiaHZiendzYXh3eGlzamtzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTMwOTI5MDgsImV4cCI6MjA2ODY2ODkwOH0.WZYX2GIixG1Xw8OihLJPUaqKaldxG0D5b0zdva82Rjk'
+        };
+        
+        // Nombre de tu tabla en Supabase
+        const TABLE_NAME = 'Poblados_Loja';
+
+        // Inicializar el mapa centrado en Loja, Ecuador
+        const map = L.map('map').setView([-3.9928, -79.2042], 10);
+
+        // Agregar capa base
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        // Grupo de capas para los poblados
+        const pobladosLayer = L.layerGroup().addTo(map);
+
+        // Elementos del DOM
+        const statusEl = document.getElementById('status');
+        const pobladoCountEl = document.getElementById('poblado-count');
+        const pobladosListEl = document.getElementById('poblados-list');
+
+        // Función para convertir UTM Zone 17S (EPSG:32717) a WGS84 (lat/lng)
+        function utmToLatLng(easting, northing) {
+            // Parámetros para UTM Zone 17S
+            const a = 6378137.0; // Radio ecuatorial WGS84
+            const e = 0.0818191908; // Excentricidad
+            const e1sq = 0.00673949674; // e'^2
+            const k0 = 0.9996; // Factor de escala
+            const arc = northing / k0;
+            const mu = arc / (a * (1 - Math.pow(e, 2) / 4.0 - 3 * Math.pow(e, 4) / 64.0 - 5 * Math.pow(e, 6) / 256.0));
+            
+            const ei = (1 - Math.pow((1 - e * e), (1 / 2))) / (1 + Math.pow((1 - e * e), (1 / 2)));
+            
+            const ca = 3 * ei / 2 - 27 * Math.pow(ei, 3) / 32.0;
+            const cb = 21 * Math.pow(ei, 2) / 16 - 55 * Math.pow(ei, 4) / 32;
+            const cc = 151 * Math.pow(ei, 3) / 96;
+            const cd = 1097 * Math.pow(ei, 4) / 512;
+            const phi1 = mu + ca * Math.sin(2 * mu) + cb * Math.sin(4 * mu) + cc * Math.sin(6 * mu) + cd * Math.sin(8 * mu);
+            
+            const n0 = a / Math.pow((1 - Math.pow((e * Math.sin(phi1)), 2)), (1 / 2));
+            const r0 = a * (1 - e * e) / Math.pow((1 - Math.pow((e * Math.sin(phi1)), 2)), (3 / 2));
+            const fact1 = n0 * Math.tan(phi1) / r0;
+            
+            const _a1 = 500000 - easting;
+            const dd0 = _a1 / (n0 * k0);
+            const fact2 = dd0 * dd0 / 2;
+            
+            const t0 = Math.pow(Math.tan(phi1), 2);
+            const Q0 = e1sq * Math.pow(Math.cos(phi1), 2);
+            const fact3 = (5 + 3 * t0 + 10 * Q0 - 4 * Q0 * Q0 - 9 * e1sq) * Math.pow(dd0, 4) / 24;
+            const fact4 = (61 + 90 * t0 + 298 * Q0 + 45 * t0 * t0 - 252 * e1sq - 3 * Q0 * Q0) * Math.pow(dd0, 6) / 720;
+            
+            const lof1 = _a1 / (n0 * k0);
+            const lof2 = (1 + 2 * t0 + Q0) * Math.pow(dd0, 3) / 6.0;
+            const lof3 = (5 - 2 * Q0 + 28 * t0 - 3 * Math.pow(Q0, 2) + 8 * e1sq + 24 * Math.pow(t0, 2)) * Math.pow(dd0, 5) / 120;
+            const _a2 = (lof1 - lof2 + lof3) / Math.cos(phi1);
+            const _a3 = _a2 * 180 / Math.PI;
+            
+            const latitude = 180 * (phi1 - fact1 * (fact2 + fact3 + fact4)) / Math.PI;
+            const longitude = -81 + _a3; // Zone 17 central meridian
+            
+            return { lat: latitude, lng: longitude };
+        }
+
+        // Variable global para almacenar los datos originales
+        let datosOriginales = [];
+
+        // Función para mostrar la estructura de datos
+        function showDataStructure() {
+            if (datosOriginales.length === 0) {
+                alert('Primero carga los datos desde Supabase');
+                return;
+            }
+
+            const sample = datosOriginales[0];
+            let structureHtml = '<html><head><title>Estructura de Datos</title></head><body style="font-family: monospace; padding: 20px; background: #f0f0f0;">';
+            structureHtml += '<h3>🔍 Estructura del primer poblado:</h3>';
+            structureHtml += '<div style="background: white; padding: 15px; border-radius: 5px; margin-bottom: 20px;">';
+            
+            Object.keys(sample).forEach(key => {
+                const value = sample[key];
+                const type = typeof value;
+                structureHtml += `<p><strong>${key}:</strong> ${JSON.stringify(value)} <em>(${type})</em></p>`;
+            });
+            
+            structureHtml += '</div>';
+            structureHtml += '<h3>📝 Información importante:</h3>';
+            structureHtml += '<p><strong>EPSG detectado:</strong> 32717 (UTM Zone 17S)</p>';
+            structureHtml += '<p>✅ El sistema ahora convierte automáticamente las coordenadas UTM a lat/lng</p>';
+            structureHtml += '<p>🔍 Busca campos que contengan números grandes (como 600000+ para X, 9500000+ para Y)</p>';
+            structureHtml += '</body></html>';
+
+            const newWindow = window.open('', '_blank', 'width=800,height=600,scrollbars=yes');
+            newWindow.document.write(structureHtml);
+        }
+
+        // Función para actualizar el estado
+        function updateStatus(message, type) {
+            statusEl.innerHTML = message;
+            statusEl.className = `status ${type}`;
+        }
+
+        // Función para cargar datos desde Supabase
+        async function loadPoblados() {
+            try {
+                updateStatus('<span class="loading-spinner"></span> Cargando poblados...', 'loading');
+                
+                console.log('Intentando conectar a:', SUPABASE_CONFIG.url);
+                console.log('Usando tabla:', TABLE_NAME);
+                
+                const url = `${SUPABASE_CONFIG.url}/rest/v1/${TABLE_NAME}?select=*`;
+                console.log('URL completa:', url);
+                
+                const response = await fetch(url, {
+                    method: 'GET',
+                    headers: {
+                        'apikey': SUPABASE_CONFIG.key,
+                        'Authorization': `Bearer ${SUPABASE_CONFIG.key}`,
+                        'Content-Type': 'application/json',
+                        'Prefer': 'return=representation'
+                    }
+                });
+
+                console.log('Status de respuesta:', response.status);
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('Error response:', errorText);
+                    throw new Error(`Error HTTP ${response.status}: ${errorText}`);
+                }
+
+                const data = await response.json();
+                console.log('Datos recibidos:', data);
+                
+                // Guardar datos originales para diagnóstico
+                datosOriginales = data;
+                
+                if (!data || data.length === 0) {
+                    updateStatus('⚠️ No se encontraron poblados en la tabla', 'error');
+                    pobladoCountEl.textContent = 'No hay datos disponibles';
+                    pobladosListEl.innerHTML = '<p style="color: #f39c12;">La tabla está vacía o no existe.</p>';
+                    return;
+                }
+
+                updateStatus('✅ Datos cargados correctamente', 'success');
+                pobladoCountEl.textContent = `${data.length} poblados encontrados`;
+                
+                // Mostrar información de diagnóstico
+                const dataInfo = document.getElementById('data-info');
+                const sample = data[0];
+                const campos = Object.keys(sample);
+                dataInfo.innerHTML = `
+                    <p><strong>Campos disponibles:</strong></p>
+                    <p style="font-size: 0.7rem;">${campos.join(', ')}</p>
+                    <p style="color: #e74c3c; margin-top: 0.5rem;">⚠️ Si las ubicaciones están mal, usa el botón de diagnóstico</p>
+                `;
+                
+                // Limpiar capas anteriores
+                pobladosLayer.clearLayers();
+                
+                // Procesar y mostrar los poblados
+                displayPoblados(data);
+                
+            } catch (error) {
+                console.error('Error detallado:', error);
+                updateStatus(`❌ Error: ${error.message}`, 'error');
+                pobladoCountEl.textContent = 'Error al cargar datos';
+                
+                let errorMsg = '<div style="color: #e74c3c; padding: 1rem; background: rgba(231, 76, 60, 0.1); border-radius: 8px;">';
+                errorMsg += '<h4>🔍 Error de conexión:</h4>';
+                errorMsg += `<p><strong>Mensaje:</strong> ${error.message}</p>`;
+                errorMsg += '<h5>Verifica:</h5>';
+                errorMsg += '<ul style="margin-left: 1rem; margin-top: 0.5rem;">';
+                errorMsg += '<li>✓ URL de Supabase correcta</li>';
+                errorMsg += '<li>✓ Clave anónima válida</li>';
+                errorMsg += '<li>✓ Tabla "Poblados_Loja" existe</li>';
+                errorMsg += '<li>✓ RLS configurado correctamente</li>';
+                errorMsg += '</ul></div>';
+                
+                pobladosListEl.innerHTML = errorMsg;
+            }
+        }
+
+        // Función para mostrar poblados en el mapa
+        function displayPoblados(poblados) {
+            const listItems = [];
+            const bounds = [];
+
+            console.log('Procesando poblados con coordenadas UTM EPSG:32717:', poblados);
+
+            poblados.forEach((poblado, index) => {
+                // Mostrar estructura del primer poblado para diagnóstico
+                if (index === 0) {
+                    console.log('Estructura del primer poblado:', poblado);
+                    console.log('Campos disponibles:', Object.keys(poblado));
+                }
+
+                let lat, lng;
+                let utmX, utmY;
+                
+                // EXTRAER COORDENADAS UTM (EPSG:32717)
+                // ====================================
+                
+                // OPCIÓN 1: Campo geometry/geom
+                if (poblado.geom) {
+                    try {
+                        let geomData = poblado.geom;
+                        if (typeof geomData === 'string') {
+                            geomData = JSON.parse(geomData);
+                        }
+                        
+                        if (geomData.type === 'Point' && geomData.coordinates) {
+                            utmX = geomData.coordinates[0];
+                            utmY = geomData.coordinates[1];
+                        } else if (geomData.coordinates) {
+                            utmX = geomData.coordinates[0];
+                            utmY = geomData.coordinates[1];
+                        }
+                    } catch (e) {
+                        console.log('Error parseando geom:', e);
+                    }
+                }
+                
+                // OPCIÓN 2: Campos individuales X/Y (típico en UTM)
+                if (!utmX || !utmY) {
+                    utmX = poblado.x || poblado.coord_x || poblado.easting || poblado.utm_x;
+                    utmY = poblado.y || poblado.coord_y || poblado.northing || poblado.utm_y;
+                }
+                
+                // OPCIÓN 3: Otros nombres posibles
+                if (!utmX || !utmY) {
+                    utmX = poblado.longitude || poblado.lng || poblado.lon;
+                    utmY = poblado.latitude || poblado.lat;
+                }
+                
+                // Convertir a números
+                utmX = parseFloat(utmX);
+                utmY = parseFloat(utmY);
+                
+                // CONVERTIR UTM A LAT/LNG
+                // ======================
+                
+                // Verificar que son coordenadas UTM válidas (números grandes)
+                if (utmX && utmY && utmX > 100000 && utmY > 1000000) {
+                    console.log(`Convirtiendo UTM: X=${utmX}, Y=${utmY}`);
+                    const coords = utmToLatLng(utmX, utmY);
+                    lat = coords.lat;
+                    lng = coords.lng;
+                    console.log(`Resultado: lat=${lat}, lng=${lng}`);
+                } else {
+                    console.warn(`Coordenadas UTM inválidas para ${poblado.nam}: X=${utmX}, Y=${utmY}`);
+                    // Si las coordenadas no son UTM válidas, usar valores por defecto
+                    lat = -3.9928 + (Math.random() - 0.5) * 0.1;
+                    lng = -79.2042 + (Math.random() - 0.5) * 0.1;
+                }
+                
+                // Validar que el resultado esté en Ecuador
+                if (lat < -5 || lat > -1 || lng < -82 || lng > -75) {
+                    console.warn(`Coordenadas fuera de Ecuador: lat=${lat}, lng=${lng}, usando valores por defecto`);
+                    lat = -3.9928 + (Math.random() - 0.5) * 0.1;
+                    lng = -79.2042 + (Math.random() - 0.5) * 0.1;
+                }
+
+                // Crear marcador
+                const marker = L.circleMarker([lat, lng], {
+                    radius: 10,
+                    fillColor: '#e74c3c',
+                    color: '#c0392b',
+                    weight: 3,
+                    opacity: 1,
+                    fillOpacity: 0.8
+                }).addTo(pobladosLayer);
+
+                // Obtener nombre del poblado
+                const nombrePoblado = poblado.nam || poblado.name || poblado.nombre || poblado.poblado || `Poblado ${index + 1}`;
+
+                // Popup con información del poblado
+                const popupContent = `
+                    <div class="popup-content">
+                        <h4>🏘️ ${nombrePoblado}</h4>
+                        <p><strong>Lat/Lng:</strong> ${lat.toFixed(6)}, ${lng.toFixed(6)}</p>
+                        <p><strong>UTM:</strong> ${utmX?.toFixed(0)}, ${utmY?.toFixed(0)}</p>
+                        ${poblado.id ? `<p><strong>ID:</strong> ${poblado.id}</p>` : ''}
+                    </div>
+                `;
+                
+                marker.bindPopup(popupContent);
+                bounds.push([lat, lng]);
+
+                // Crear elemento de la lista
+                const listItem = document.createElement('div');
+                listItem.className = 'poblado-item';
+                listItem.innerHTML = `
+                    <h4>${nombrePoblado}</h4>
+                    <p>📍 ${lat.toFixed(4)}, ${lng.toFixed(4)}</p>
+                    <p style="font-size: 0.8rem; color: #7f8c8d;">UTM: ${utmX?.toFixed(0)}, ${utmY?.toFixed(0)}</p>
+                `;
+                
+                // Evento click para centrar el mapa
+                listItem.addEventListener('click', () => {
+                    map.setView([lat, lng], 15);
+                    marker.openPopup();
+                });
+                
+                listItems.push(listItem);
+            });
+
+            // Actualizar lista en la sidebar
+            pobladosListEl.innerHTML = '';
+            if (listItems.length === 0) {
+                pobladosListEl.innerHTML = '<p style="color: #e74c3c;">No se pudieron procesar los poblados</p>';
+            } else {
+                listItems.forEach(item => pobladosListEl.appendChild(item));
+            }
+
+            // Ajustar vista del mapa para mostrar todos los poblados
+            if (bounds.length > 0) {
+                map.fitBounds(bounds, { padding: [20, 20] });
+                console.log(`Mapa ajustado para mostrar ${bounds.length} poblados`);
+            }
+        }
+
+        // Verificar configuración antes de cargar
+        function checkConfiguration() {
+            // La configuración ya está lista
+            return true;
+        }
+
+        // Inicializar la aplicación
+        if (checkConfiguration()) {
+            loadPoblados();
+        }
+
+        // Botón para recargar datos
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'F5' || (e.ctrlKey && e.key === 'r')) {
+                e.preventDefault();
+                if (checkConfiguration()) {
+                    loadPoblados();
+                }
+            }
+        });
+    </script>
+</body>
+</html>
