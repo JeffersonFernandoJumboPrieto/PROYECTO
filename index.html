@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Geovisor Loja - Diagnóstico</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+        }
+
+        .header {
+            background: linear-gradient(135deg, #2c3e50, #34495e);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2rem;
+            margin-bottom: 10px;
+        }
+
+        .content {
+            display: flex;
+            min-height: 70vh;
+        }
+
+        .sidebar {
+            width: 400px;
+            padding: 30px;
+            border-right: 1px solid #eee;
+        }
+
+        .main-content {
+            flex: 1;
+            position: relative;
+        }
+
+        .status-section {
+            margin-bottom: 30px;
+        }
+
+        .status-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .status-item {
+            background: white;
+            border: 2px solid #ecf0f1;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 10px;
+            transition: all 0.3s ease;
+        }
+
+        .status-item.pending {
+            border-color: #f39c12;
+            background: #fef9e7;
+        }
+
+        .status-item.success {
+            border-color: #27ae60;
+            background: #eafaf1;
+        }
+
+        .status-item.error {
+            border-color: #e74c3c;
+            background: #fdeaea;
+        }
+
+        .status-text {
+            font-weight: 500;
+            margin-bottom: 5px;
+        }
+
+        .status-details {
+            font-size: 0.9rem;
+            color: #666;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .btn-primary {
+            background: #3498db;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #2980b9;
+            transform: translateY(-2px);
+        }
+
+        .btn-success {
+            background: #27ae60;
+            color: white;
+        }
+
+        .btn-warning {
+            background: #f39c12;
+            color: white;
+        }
+
+        .data-preview {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 15px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.85rem;
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #dee2e6;
+        }
+
+        #map {
+            height: 100%;
+            width: 100%;
+            min-height: 500px;
+        }
+
+        .layer-controls {
+            margin-top: 20px;
+        }
+
+        .layer-item {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .layer-checkbox {
+            width: 18px;
+            height: 18px;
+        }
+
+        .layer-info {
+            flex: 1;
+        }
+
+        .layer-name {
+            font-weight: 600;
+            color: #2c3e50;
+        }
+
+        .layer-table {
+            font-size: 0.8rem;
+            color: #7f8c8d;
+        }
+
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🗺️ Geovisor Loja</h1>
+            <p>Diagnóstico de Conexión y Sistema de Información Geográfica</p>
+        </div>
+
+        <div class="content">
+            <div class="sidebar">
+                <div class="status-section">
+                    <div class="status-title">
+                        🔧 Estado del Sistema
+                    </div>
+                    
+                    <div id="status-init" class="status-item pending">
+                        <div class="status-text">Inicializando aplicación...</div>
+                        <div class="status-details">Cargando componentes</div>
+                    </div>
+
+                    <div id="status-supabase" class="status-item">
+                        <div class="status-text">Librería Supabase</div>
+                        <div class="status-details">Verificando disponibilidad</div>
+                    </div>
+
+                    <div id="status-network" class="status-item">
+                        <div class="status-text">Conectividad de Red</div>
+                        <div class="status-details">Probando acceso al servidor</div>
+                    </div>
+
+                    <div id="status-auth" class="status-item">
+                        <div class="status-text">Autenticación</div>
+                        <div class="status-details">Verificando credenciales</div>
+                    </div>
+
+                    <div id="status-tables" class="status-item">
+                        <div class="status-text">Acceso a Tablas</div>
+                        <div class="status-details">Probando permisos de lectura</div>
+                    </div>
+                </div>
+
+                <div class="button-group">
+                    <button id="btn-diagnose" class="btn btn-primary">🔍 Ejecutar Diagnóstico</button>
+                    <button id="btn-manual" class="btn btn-warning">🔧 Prueba Manual</button>
+                </div>
+
+                <div id="connection-details" class="hidden">
+                    <div class="status-title">📊 Detalles de Conexión</div>
+                    <div id="connection-info"></div>
+                </div>
+
+                <div id="layer-controls" class="layer-controls hidden">
+                    <div class="status-title">📁 Capas Disponibles</div>
+                    
+                    <div class="layer-item">
+                        <input type="checkbox" id="poblados" class="layer-checkbox">
+                        <div class="layer-info">
+                            <div class="layer-name">Poblados</div>
+                            <div class="layer-table">Poblados_Loja</div>
+                        </div>
+                    </div>
+
+                    <div class="layer-item">
+                        <input type="checkbox" id="canton" class="layer-checkbox">
+                        <div class="layer-info">
+                            <div class="layer-name">Cantón</div>
+                            <div class="layer-table">Canton_Loja</div>
+                        </div>
+                    </div>
+
+                    <div class="layer-item">
+                        <input type="checkbox" id="coberturas" class="layer-checkbox">
+                        <div class="layer-info">
+                            <div class="layer-name">Coberturas de Tierras</div>
+                            <div class="layer-table">COB_T_MC_ZAMORA_CV</div>
+                        </div>
+                    </div>
+
+                    <div class="layer-item">
+                        <input type="checkbox" id="uso" class="layer-checkbox">
+                        <div class="layer-info">
+                            <div class="layer-name">Uso de Tierras</div>
+                            <div class="layer-table">USO_T_MC_ZAMORA_CV</div>
+                        </div>
+                    </div>
+
+                    <div class="layer-item">
+                        <input type="checkbox" id="movimientos" class="layer-checkbox">
+                        <div class="layer-info">
+                            <div class="layer-name">Capa de Movimientos</div>
+                            <div class="layer-table">Movimientos_masa_Loja</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="main-content">
+                <div id="map"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <!-- Proj4js para transformación de coordenadas -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.9.0/proj4.min.js"></script>
+
+    <script>
+        // Configuración
+        const SUPABASE_URL = 'https://kwzrbhvbzwsaxwxisjks.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt3enJiaHZiendzYXh3eGlzamtzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTMwOTI5MDgsImV4cCI6MjA2ODY2ODkwOH0.WZYX2GIixG1Xw8OihLJPUaqKaldxG0D5b0zdva82Rjk';
+
+        // Variables globales
+        let supabase = null;
+        let map = null;
+        let layerGroups = {};
+
+        // Definir sistemas de coordenadas
+        // EPSG:32717 - UTM Zone 17S (datos originales)
+        proj4.defs("EPSG:32717", "+proj=utm +zone=17 +south +datum=WGS84 +units=m +no_defs");
+        // EPSG:4326 - WGS84 Geographic (para Leaflet)
+        proj4.defs("EPSG:4326", "+proj=longlat +datum=WGS84 +no_defs");
+
+        // Función para transformar coordenadas
+        function transformCoordinates(coordinates, fromEPSG = "EPSG:32717", toEPSG = "EPSG:4326") {
+            if (!coordinates || !Array.isArray(coordinates)) return coordinates;
+            
+            // Función recursiva para manejar diferentes tipos de geometrías
+            const transform = (coords) => {
+                if (typeof coords[0] === 'number' && typeof coords[1] === 'number') {
+                    // Es un punto [x, y]
+                    const transformed = proj4(fromEPSG, toEPSG, [coords[0], coords[1]]);
+                    return [transformed[0], transformed[1]]; // [lon, lat]
+                } else if (Array.isArray(coords[0])) {
+                    // Es un array de coordenadas
+                    return coords.map(transform);
+                }
+                return coords;
+            };
+            
+            return transform(coordinates);
+        }
+
+        // Función para transformar geometría completa
+        function transformGeometry(geometry) {
+            if (!geometry || !geometry.coordinates) return geometry;
+            
+            const newGeometry = { ...geometry };
+            
+            try {
+                switch (geometry.type) {
+                    case 'Point':
+                        newGeometry.coordinates = transformCoordinates(geometry.coordinates);
+                        break;
+                    case 'LineString':
+                    case 'MultiPoint':
+                        newGeometry.coordinates = transformCoordinates(geometry.coordinates);
+                        break;
+                    case 'Polygon':
+                    case 'MultiLineString':
+                        newGeometry.coordinates = transformCoordinates(geometry.coordinates);
+                        break;
+                    case 'MultiPolygon':
+                        newGeometry.coordinates = transformCoordinates(geometry.coordinates);
+                        break;
+                    default:
+                        console.warn(`Tipo de geometría no soportado: ${geometry.type}`);
+                        return geometry;
+                }
+                
+                return newGeometry;
+            } catch (error) {
+                console.error('Error transformando geometría:', error);
+                return geometry;
+            }
+        }
+
+        // Configuración de tablas
+        const tables = {
+            poblados: { name: 'Poblados_Loja', displayName: 'Poblados', color: '#e74c3c' },
+            canton: { name: 'Canton_Loja', displayName: 'Cantón', color: '#3498db' },
+            coberturas: { name: 'COB_T_MC_ZAMORA_CV', displayName: 'Coberturas de Tierras', color: '#27ae60' },
+            uso: { name: 'USO_T_MC_ZAMORA_CV', displayName: 'Uso de Tierras', color: '#f39c12' },
+            movimientos: { name: 'Movimientos_masa_Loja', displayName: 'Capa de Movimientos', color: '#9b59b6' }
+        };
+
+        // Funciones de utilidad
+        function updateStatus(elementId, status, text, details = '') {
+            const element = document.getElementById(elementId);
+            element.className = `status-item ${status}`;
+            element.querySelector('.status-text').textContent = text;
+            element.querySelector('.status-details').textContent = details;
+        }
+
+        function showConnectionDetails(info) {
+            const container = document.getElementById('connection-details');
+            const infoDiv = document.getElementById('connection-info');
+            
+            infoDiv.innerHTML = `<div class="data-preview">${JSON.stringify(info, null, 2)}</div>`;
+            container.classList.remove('hidden');
+        }
+
+        // Paso 1: Verificar librerías
+        async function checkLibraries() {
+            updateStatus('status-supabase', 'pending', 'Verificando Supabase...', 'Comprobando disponibilidad');
+            
+            if (typeof window.supabase === 'undefined') {
+                updateStatus('status-supabase', 'error', 'Supabase no disponible', 'Error cargando librería');
+                throw new Error('Librería Supabase no se cargó correctamente');
+            }
+            
+            updateStatus('status-supabase', 'success', 'Supabase cargado ✅', 'Librería disponible');
+        }
+
+        // Paso 2: Verificar conectividad
+        async function checkNetwork() {
+            updateStatus('status-network', 'pending', 'Probando conexión...', 'Verificando acceso al servidor');
+            
+            try {
+                const response = await fetch(SUPABASE_URL + '/health', { 
+                    method: 'GET',
+                    mode: 'no-cors'
+                });
+                
+                updateStatus('status-network', 'success', 'Red conectada ✅', 'Servidor accesible');
+            } catch (error) {
+                // Intentar con endpoint básico
+                try {
+                    const response = await fetch(SUPABASE_URL);
+                    updateStatus('status-network', 'success', 'Red conectada ✅', 'Servidor accesible');
+                } catch (error2) {
+                    updateStatus('status-network', 'error', 'Error de red ❌', error2.message);
+                    throw error2;
+                }
+            }
+        }
+
+        // Paso 3: Verificar autenticación
+        async function checkAuth() {
+            updateStatus('status-auth', 'pending', 'Verificando credenciales...', 'Probando clave de API');
+            
+            try {
+                supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                
+                if (!supabase) {
+                    throw new Error('No se pudo crear cliente Supabase');
+                }
+                
+                updateStatus('status-auth', 'success', 'Autenticación OK ✅', 'Cliente inicializado');
+            } catch (error) {
+                updateStatus('status-auth', 'error', 'Error de autenticación ❌', error.message);
+                throw error;
+            }
+        }
+
+        // Paso 4: Verificar acceso a tablas
+        async function checkTables() {
+            updateStatus('status-tables', 'pending', 'Probando tablas...', 'Verificando permisos');
+            
+            const results = {};
+            const errors = [];
+            
+            for (const [key, config] of Object.entries(tables)) {
+                try {
+                    console.log(`Probando tabla: ${config.name}`);
+                    
+                    const { data, error, count } = await supabase
+                        .from(config.name)
+                        .select('*', { count: 'exact' })
+                        .limit(1);
+                    
+                    if (error) {
+                        console.error(`Error en ${config.name}:`, error);
+                        errors.push(`${config.name}: ${error.message}`);
+                        results[key] = { error: error.message, accessible: false };
+                    } else {
+                        console.log(`✅ ${config.name}: ${count} registros`);
+                        results[key] = { 
+                            accessible: true, 
+                            count: count, 
+                            sample: data?.[0] ? Object.keys(data[0]) : []
+                        };
+                    }
+                } catch (error) {
+                    console.error(`Excepción en ${config.name}:`, error);
+                    errors.push(`${config.name}: ${error.message}`);
+                    results[key] = { error: error.message, accessible: false };
+                }
+            }
+            
+            showConnectionDetails(results);
+            
+            const accessibleTables = Object.values(results).filter(r => r.accessible).length;
+            
+            if (accessibleTables === 0) {
+                updateStatus('status-tables', 'error', 'Sin acceso a tablas ❌', 
+                    `Errores: ${errors.slice(0, 2).join(', ')}`);
+                throw new Error('No se pudo acceder a ninguna tabla');
+            } else {
+                updateStatus('status-tables', 'success', `${accessibleTables} tablas accesibles ✅`, 
+                    `De ${Object.keys(tables).length} tablas`);
+            }
+            
+            return results;
+        }
+
+        // Inicializar mapa centrado en Loja
+        function initMap() {
+            // Coordenadas de Loja, Ecuador
+            map = L.map('map').setView([-3.9939, -79.2042], 12);
+            
+            // Capa base por defecto
+            const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
+            
+            // Capas adicionales
+            const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                attribution: '© Esri'
+            });
+            
+            const terrainLayer = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenTopoMap contributors'
+            });
+            
+            // Control de capas base
+            const baseMaps = {
+                "🗺️ Mapa": osmLayer,
+                "🛰️ Satélite": satelliteLayer,
+                "🏔️ Terreno": terrainLayer
+            };
+            
+            L.control.layers(baseMaps).addTo(map);
+            
+            // Agregar marcador de referencia para Loja
+            const lojaMarker = L.marker([-3.9939, -79.2042])
+                .addTo(map)
+                .bindPopup('<strong>🏛️ Ciudad de Loja</strong><br>Capital Provincial<br>Ecuador')
+                .openPopup();
+            
+            console.log('🗺️ Mapa inicializado centrado en Loja, Ecuador');
+        }
+
+        // Ejecutar diagnóstico completo
+        async function runDiagnosis() {
+            try {
+                updateStatus('status-init', 'pending', 'Iniciando diagnóstico...', 'Ejecutando pruebas');
+                
+                await checkLibraries();
+                await checkNetwork();
+                await checkAuth();
+                const tableResults = await checkTables();
+                
+                updateStatus('status-init', 'success', 'Sistema listo ✅', 'Todas las verificaciones completadas');
+                
+                // Mostrar controles de capas
+                document.getElementById('layer-controls').classList.remove('hidden');
+                
+                // Inicializar mapa si no existe
+                if (!map) {
+                    initMap();
+                }
+                
+                console.log('✅ Diagnóstico completado exitosamente');
+                
+            } catch (error) {
+                updateStatus('status-init', 'error', 'Error en diagnóstico ❌', error.message);
+                console.error('❌ Error en diagnóstico:', error);
+            }
+        }
+
+        // Prueba manual con fetch directo
+        async function runManualTest() {
+            try {
+                const url = `${SUPABASE_URL}/rest/v1/Poblados_Loja?select=*&limit=1`;
+                
+                const response = await fetch(url, {
+                    headers: {
+                        'apikey': SUPABASE_ANON_KEY,
+                        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    alert(`✅ Conexión manual exitosa!\nEncontrados ${data.length} registros\nEstado: ${response.status}`);
+                    console.log('Datos de prueba manual:', data);
+                } else {
+                    const errorText = await response.text();
+                    alert(`❌ Error manual: ${response.status}\n${errorText}`);
+                }
+            } catch (error) {
+                alert(`❌ Error en prueba manual: ${error.message}`);
+            }
+        }
+
+        // Cargar y mostrar capa
+        async function loadLayer(layerId) {
+            const config = tables[layerId];
+            if (!config) return;
+
+            console.log(`🔄 Cargando capa: ${config.displayName}`);
+            
+            try {
+                // Obtener datos de la tabla
+                const { data, error } = await supabase
+                    .from(config.name)
+                    .select('*');
+
+                if (error) {
+                    console.error(`❌ Error cargando ${config.name}:`, error);
+                    alert(`Error cargando ${config.displayName}: ${error.message}`);
+                    return;
+                }
+
+                console.log(`📊 Datos obtenidos de ${config.name}:`, data?.length || 0, 'registros');
+                
+                if (!data || data.length === 0) {
+                    alert(`⚠️ La tabla ${config.displayName} está vacía`);
+                    return;
+                }
+
+                // Mostrar estructura del primer registro
+                console.log(`🔍 Campos disponibles en ${config.name}:`, Object.keys(data[0] || {}));
+
+                // Procesar datos geoespaciales
+                const geoJsonData = processGeoData(data, config.name);
+                
+                if (geoJsonData && geoJsonData.features && geoJsonData.features.length > 0) {
+                    // Remover capa anterior si existe
+                    if (layerGroups[layerId]) {
+                        map.removeLayer(layerGroups[layerId]);
+                    }
+
+                    // Crear nueva capa
+                    layerGroups[layerId] = L.geoJSON(geoJsonData, {
+                        style: {
+                            color: config.color,
+                            weight: 2,
+                            fillOpacity: 0.6,
+                            opacity: 0.8
+                        },
+                        onEachFeature: (feature, layer) => {
+                            // Crear popup con información
+                            let popupContent = `<h4>${config.displayName}</h4>`;
+                            if (feature.properties) {
+                                const props = feature.properties;
+                                Object.keys(props).forEach(key => {
+                                    if (key && props[key] !== null && props[key] !== undefined && 
+                                        props[key] !== '' && !key.toLowerCase().includes('geom')) {
+                                        popupContent += `<strong>${key}:</strong> ${props[key]}<br>`;
+                                    }
+                                });
+                            }
+                            layer.bindPopup(popupContent);
+                        }
+                    });
+
+                    // Agregar al mapa
+                    layerGroups[layerId].addTo(map);
+                    
+                    // Ajustar vista si es la primera capa visible
+                    const visibleLayers = Object.keys(layerGroups).length;
+                    if (visibleLayers === 1) {
+                        try {
+                            map.fitBounds(layerGroups[layerId].getBounds(), { padding: [20, 20] });
+                        } catch (e) {
+                            console.warn('No se pudo ajustar vista:', e);
+                        }
+                    }
+
+                    console.log(`✅ Capa ${config.displayName} cargada con ${geoJsonData.features.length} elementos`);
+                    alert(`✅ ${config.displayName} cargada exitosamente!\n${geoJsonData.features.length} elementos agregados al mapa`);
+                    
+                } else {
+                    console.warn(`⚠️ No se encontraron geometrías válidas en ${config.name}`);
+                    alert(`⚠️ ${config.displayName}: Los datos no contienen geometrías válidas.\n\nCampos disponibles: ${Object.keys(data[0] || {}).join(', ')}`);
+                }
+
+            } catch (error) {
+                console.error(`❌ Error procesando ${config.name}:`, error);
+                alert(`Error procesando ${config.displayName}: ${error.message}`);
+            }
+        }
+
+        // Procesar datos geoespaciales
+        function processGeoData(data, tableName) {
+            if (!data || data.length === 0) {
+                console.log('⚠️ No hay datos para procesar');
+                return null;
+            }
+
+            console.log(`🔄 Procesando ${data.length} registros de ${tableName}...`);
+            const features = [];
+            let geometryFieldFound = null;
+            let transformedCount = 0;
+            
+            data.forEach((record, index) => {
+                let geometry = null;
+                
+                // Buscar campos de geometría en diferentes formatos
+                const geomFields = [
+                    'geom', 'geometry', 'the_geom', 'shape', 'wkt', 
+                    'geojson', 'geo', 'st_asgeojson', 'coordinates'
+                ];
+                
+                for (const field of geomFields) {
+                    if (record[field]) {
+                        try {
+                            let geomData = record[field];
+                            
+                            // Si es string, intentar diferentes formatos
+                            if (typeof geomData === 'string') {
+                                // Verificar si es WKT (Well-Known Text)
+                                if (geomData.includes('POINT') || geomData.includes('POLYGON') || 
+                                    geomData.includes('LINESTRING') || geomData.includes('MULTIPOLYGON')) {
+                                    console.log(`⚠️ Formato WKT detectado en ${field}, tabla: ${tableName}`);
+                                    alert(`⚠️ Los datos están en formato WKT que requiere conversión.\nCampo: ${field}\nEjemplo: ${geomData.substring(0, 100)}...`);
+                                    continue;
+                                }
+                                
+                                // Intentar parsear como JSON
+                                try {
+                                    geomData = JSON.parse(geomData);
+                                } catch (e) {
+                                    // Si no es JSON válido, saltar
+                                    continue;
+                                }
+                            }
+                            
+                            // Verificar estructura de geometría GeoJSON válida
+                            if (geomData && typeof geomData === 'object') {
+                                if (geomData.type && geomData.coordinates) {
+                                    geometry = geomData;
+                                    geometryFieldFound = field;
+                                    break;
+                                } else if (geomData.geometry && geomData.geometry.type && geomData.geometry.coordinates) {
+                                    geometry = geomData.geometry;
+                                    geometryFieldFound = field;
+                                    break;
+                                }
+                            }
+                        } catch (e) {
+                            console.warn(`⚠️ Error procesando campo ${field} en registro ${index}:`, e);
+                        }
+                    }
+                }
+
+                if (geometry) {
+                    // Transformar coordenadas de UTM 32717 a WGS84
+                    const transformedGeometry = transformGeometry(geometry);
+                    
+                    if (transformedGeometry) {
+                        transformedCount++;
+                        
+                        // Crear propiedades sin los campos de geometría
+                        const properties = { ...record };
+                        geomFields.forEach(field => delete properties[field]);
+
+                        features.push({
+                            type: 'Feature',
+                            geometry: transformedGeometry,
+                            properties: properties
+                        });
+                        
+                        // Log de muestra para los primeros registros
+                        if (index < 3) {
+                            console.log(`📍 Registro ${index} transformado:`, {
+                                original: geometry.coordinates,
+                                transformed: transformedGeometry.coordinates
+                            });
+                        }
+                    }
+                } else {
+                    // Mostrar campos disponibles para el primer registro sin geometría
+                    if (index === 0) {
+                        console.warn(`❌ No se encontró geometría en ${tableName}. Campos: ${Object.keys(record).join(', ')}`);
+                    }
+                }
+            });
+
+            console.log(`✅ Procesados ${features.length} features de ${data.length} registros en ${tableName}`);
+            console.log(`🔍 Campo de geometría utilizado: ${geometryFieldFound || 'ninguno'}`);
+            console.log(`🌐 Coordenadas transformadas de UTM 32717 a WGS84: ${transformedCount}`);
+            
+            if (features.length === 0) {
+                return null;
+            }
+
+            return {
+                type: 'FeatureCollection',
+                features: features
+            };
+        }
+
+        // Inicializar mapa centrado en Loja
+        function initMap() {
+            // Coordenadas de Loja, Ecuador
+            map = L.map('map').setView([-3.9939, -79.2042], 12);
+            
+            // Capa base por defecto
+            const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
+            
+            // Capas adicionales
+            const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                attribution: '© Esri'
+            });
+            
+            const terrainLayer = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenTopoMap contributors'
+            });
+            
+            // Control de capas base
+            const baseMaps = {
+                "🗺️ Mapa": osmLayer,
+                "🛰️ Satélite": satelliteLayer,
+                "🏔️ Terreno": terrainLayer
+            };
+            
+            L.control.layers(baseMaps).addTo(map);
+            
+            // Agregar marcador de referencia para Loja
+            const lojaMarker = L.marker([-3.9939, -79.2042])
+                .addTo(map)
+                .bindPopup('<strong>🏛️ Ciudad de Loja</strong><br>Capital Provincial<br>Ecuador')
+                .openPopup();
+            
+            console.log('🗺️ Mapa inicializado centrado en Loja, Ecuador');
+        }
+
+        // Remover capa
+        function removeLayer(layerId) {
+            if (layerGroups[layerId]) {
+                map.removeLayer(layerGroups[layerId]);
+                delete layerGroups[layerId];
+                console.log(`🗑️ Capa ${tables[layerId].displayName} removida`);
+            }
+        }
+
+        // Event listeners para checkboxes
+        function setupLayerControls() {
+            Object.keys(tables).forEach(layerId => {
+                const checkbox = document.getElementById(layerId);
+                if (checkbox) {
+                    checkbox.addEventListener('change', (e) => {
+                        if (e.target.checked) {
+                            loadLayer(layerId);
+                        } else {
+                            removeLayer(layerId);
+                        }
+                    });
+                }
+            });
+        }
+
+        // Event listeners
+        document.getElementById('btn-diagnose').addEventListener('click', runDiagnosis);
+        document.getElementById('btn-manual').addEventListener('click', runManualTest);
+
+        // Auto-inicializar
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('🚀 Aplicación cargada, ejecutando diagnóstico automático...');
+            setTimeout(() => {
+                runDiagnosis().then(() => {
+                    // Configurar controles de capas después del diagnóstico
+                    setupLayerControls();
+                });
+            }, 1000);
+        });
+    </script>
+</body>
+</html>
